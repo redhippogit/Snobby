@@ -6,424 +6,272 @@
   <title>Snob</title>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-
     body {
-      background: #000;
-      min-height: 100dvh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      overflow: hidden;
-      position: relative;
+      background:#000;
+      min-height:100dvh;
+      display:flex; flex-direction:column;
+      align-items:center; justify-content:center;
+      font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      overflow:hidden; position:relative;
+      user-select:none;
     }
-
-    /* Subtle glow behind face when speaking */
     .glow {
-      position: absolute;
-      width: 340px; height: 240px;
-      border-radius: 50%;
-      background: radial-gradient(ellipse, rgba(180,0,255,0.18) 0%, transparent 70%);
-      filter: blur(30px);
-      opacity: 0;
-      transition: opacity 0.4s;
-      pointer-events: none;
+      position:absolute;
+      width:360px; height:260px;
+      border-radius:50%;
+      background:radial-gradient(ellipse, rgba(180,0,255,0.2) 0%, transparent 70%);
+      filter:blur(30px);
+      opacity:0; transition:opacity 0.5s;
+      pointer-events:none;
     }
-    .glow.active { opacity: 1; }
-
+    .glow.on { opacity:1; }
     canvas {
-      display: block;
-      width: 300px;
-      height: 200px;
-      border-radius: 36px;
-      position: relative;
-      z-index: 1;
+      display:block; width:300px; height:200px;
+      border-radius:36px; position:relative; z-index:1;
     }
-
     .name {
-      color: #fff;
-      font-size: 34px;
-      font-weight: 900;
-      letter-spacing: 8px;
-      margin-top: 28px;
-      z-index: 1;
+      color:#fff; font-size:34px; font-weight:900;
+      letter-spacing:8px; margin-top:28px; z-index:1;
     }
-
     .status {
-      color: rgba(255,255,255,0.35);
-      font-size: 13px;
-      margin-top: 10px;
-      height: 18px;
-      z-index: 1;
-      transition: color 0.3s;
+      color:rgba(255,255,255,0.3); font-size:13px;
+      margin-top:10px; height:20px; z-index:1;
+      text-align:center; transition:color .3s;
+      max-width:280px; line-height:1.4;
     }
-    .status.active { color: rgba(200,100,255,0.8); }
-
-    /* Mic button */
-    .mic-wrap {
-      margin-top: 48px;
-      z-index: 1;
-    }
+    .status.lit { color:rgba(200,100,255,0.85); }
+    .mic-wrap { margin-top:46px; z-index:1; }
     .mic-btn {
-      width: 72px; height: 72px;
-      border-radius: 50%;
-      background: rgba(255,255,255,0.06);
-      border: 1.5px solid rgba(255,255,255,0.15);
-      color: #fff;
-      font-size: 30px;
-      cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-      transition: all 0.25s;
-      position: relative;
+      width:72px; height:72px; border-radius:50%;
+      background:rgba(255,255,255,0.06);
+      border:1.5px solid rgba(255,255,255,0.14);
+      color:#fff; font-size:30px; cursor:pointer;
+      display:flex; align-items:center; justify-content:center;
+      transition:all .25s; position:relative;
     }
-    .mic-btn::after {
-      content: '';
-      position: absolute;
-      inset: -6px;
-      border-radius: 50%;
-      border: 1.5px solid rgba(180,0,255,0);
-      transition: all 0.3s;
+    .mic-btn.on {
+      background:rgba(180,0,255,0.22);
+      border-color:rgba(180,0,255,0.7);
+      box-shadow:0 0 28px rgba(180,0,255,0.45);
+      animation:pulse 1.4s infinite;
     }
-    .mic-btn.listening {
-      background: rgba(180,0,255,0.2);
-      border-color: rgba(180,0,255,0.6);
-      box-shadow: 0 0 28px rgba(180,0,255,0.4);
-      animation: mic-pulse 1.4s infinite;
-    }
-    .mic-btn.listening::after {
-      border-color: rgba(180,0,255,0.3);
-      animation: ring-out 1.4s infinite;
-    }
-    @keyframes mic-pulse {
-      0%,100% { transform: scale(1); }
-      50%      { transform: scale(1.06); }
-    }
-    @keyframes ring-out {
-      0%   { inset:-6px;  opacity:.6; }
-      100% { inset:-20px; opacity:0; }
-    }
-
+    @keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.07)} }
     .mic-label {
-      color: rgba(255,255,255,0.25);
-      font-size: 11px;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      margin-top: 12px;
-      text-align: center;
+      color:rgba(255,255,255,0.2); font-size:11px;
+      letter-spacing:2px; text-transform:uppercase;
+      margin-top:12px; text-align:center;
     }
-
-    /* Settings gear — top right corner */
-    .gear {
-      position: fixed;
-      top: 18px; right: 18px;
-      background: none;
-      border: none;
-      color: rgba(255,255,255,0.2);
-      font-size: 20px;
-      cursor: pointer;
-      z-index: 10;
-      transition: color 0.2s;
-    }
-    .gear:hover { color: rgba(255,255,255,0.5); }
-
-    /* Settings overlay */
-    .overlay {
-      position: fixed; inset: 0;
-      background: rgba(0,0,0,0.85);
-      display: flex; align-items: center; justify-content: center;
-      z-index: 100; padding: 24px;
-      backdrop-filter: blur(6px);
-    }
-    .card {
-      background: #111;
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 24px;
-      padding: 28px 24px;
-      width: 100%; max-width: 340px;
-      color: #fff;
-    }
-    .card h2 { font-size: 18px; margin-bottom: 8px; }
-    .card p  { color: rgba(255,255,255,0.5); font-size: 13px; line-height: 1.6; margin-bottom: 18px; }
-    .card a  { color: #b400ff; }
-    .key-input {
-      width: 100%;
-      background: rgba(255,255,255,0.06);
-      border: 1px solid rgba(255,255,255,0.15);
-      border-radius: 12px;
-      padding: 13px 16px;
-      font-size: 14px;
-      color: #fff;
-      outline: none;
-      margin-bottom: 14px;
-    }
-    .key-input::placeholder { color: rgba(255,255,255,0.25); }
-    .key-input:focus { border-color: #b400ff; }
-    .save-btn {
-      width: 100%;
-      background: #b400ff;
-      color: #fff;
-      border: none;
-      border-radius: 12px;
-      padding: 14px;
-      font-size: 16px;
-      font-weight: 700;
-      cursor: pointer;
-    }
-
-    .hidden { display: none !important; }
   </style>
 </head>
 <body>
-
   <div class="glow" id="glow"></div>
   <canvas id="face" width="600" height="400"></canvas>
   <div class="name">SNOB</div>
-  <div class="status" id="status">…</div>
-
+  <div class="status" id="status"></div>
   <div class="mic-wrap">
     <button class="mic-btn" id="micBtn" onclick="toggleListen()">🎤</button>
     <div class="mic-label" id="micLabel">Tippen</div>
   </div>
 
-  <button class="gear" onclick="openSettings()">⚙</button>
-
-  <!-- Settings -->
-  <div class="overlay hidden" id="overlay">
-    <div class="card">
-      <h2>Snob einrichten</h2>
-      <p>Anthropic API-Key eingeben.<br>Wird nur lokal gespeichert.<br>
-        <a href="https://console.anthropic.com/account/keys" target="_blank">→ Key holen</a>
-      </p>
-      <input class="key-input" type="password" id="keyInput" placeholder="sk-ant-..." />
-      <button class="save-btn" onclick="saveKey()">Fertig</button>
-    </div>
-  </div>
-
 <script>
-/* ── CANVAS FACE ── */
-const cv  = document.getElementById('face');
+/* ── FACE ── */
+const cv = document.getElementById('face');
 const ctx = cv.getContext('2d');
-
-// polyfill
 if (!ctx.roundRect) {
   CanvasRenderingContext2D.prototype.roundRect = function(x,y,w,h,r){
     this.beginPath();
     this.moveTo(x+r,y); this.lineTo(x+w-r,y);
-    this.quadraticCurveTo(x+w,y,x+w,y+r);
-    this.lineTo(x+w,y+h-r);
-    this.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
-    this.lineTo(x+r,y+h);
-    this.quadraticCurveTo(x,y+h,x,y+h-r);
-    this.lineTo(x,y+r);
-    this.quadraticCurveTo(x,y,x+r,y);
-    this.closePath();
+    this.quadraticCurveTo(x+w,y,x+w,y+r); this.lineTo(x+w,y+h-r);
+    this.quadraticCurveTo(x+w,y+h,x+w-r,y+h); this.lineTo(x+r,y+h);
+    this.quadraticCurveTo(x,y+h,x,y+h-r); this.lineTo(x,y+r);
+    this.quadraticCurveTo(x,y,x+r,y); this.closePath();
   };
 }
 
-let fSpeaking = false;
-let fThinking = false;
-let fListening= false;
-let blink = false, blinkT = 0;
-let mOpen = 0, mPhase = 0;
-let thinkP= 0, frame = 0;
-// subtle eye movement
-let eyeOx = 0, eyeOy = 0, eyeTx = 0, eyeTy = 0, eyeTimer = 0;
+let fSpeak=false, fThink=false, fListen=false;
+let blink=false, blinkT=0;
+let mOpen=0, mPhase=0, thinkP=0, frame=0;
+let eyeOx=0, eyeOy=0, eyeTx=0, eyeTy=0, eyeTimer=0;
 
 function drawFace(){
   const W=cv.width, H=cv.height;
   ctx.clearRect(0,0,W,H);
-
-  // face bg
   ctx.fillStyle='#111';
-  ctx.roundRect(0,0,W,H,50);
-  ctx.fill();
+  ctx.roundRect(0,0,W,H,50); ctx.fill();
 
-  // params
-  const eyeY  = H*0.41;
-  const lx    = W*0.31 + eyeOx;
-  const rx    = W*0.69 + eyeOx;
-  const eRx   = W*0.13;
-  const eRy   = blink ? 3 : H*0.22;
+  const eyeY=H*.41, lx=W*.31+eyeOx, rx=W*.69+eyeOx;
+  const eRx=W*.13, eRy=blink?3:H*.22;
 
-  // glow effect on eyes when speaking
-  if(fSpeaking){
-    ctx.shadowColor='rgba(180,0,255,0.5)';
-    ctx.shadowBlur=20;
-  } else if(fListening){
-    ctx.shadowColor='rgba(0,200,255,0.4)';
-    ctx.shadowBlur=14;
-  } else {
-    ctx.shadowBlur=0;
-  }
+  if(fSpeak){ ctx.shadowColor='rgba(180,0,255,.55)'; ctx.shadowBlur=22; }
+  else if(fListen){ ctx.shadowColor='rgba(0,200,255,.4)'; ctx.shadowBlur=16; }
+  else { ctx.shadowBlur=0; }
 
   ctx.fillStyle='#fff';
-  ctx.beginPath(); ctx.ellipse(lx, eyeY+eyeOy, eRx, eRy, 0, 0, Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(rx, eyeY+eyeOy, eRx, eRy, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(lx,eyeY+eyeOy,eRx,eRy,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(rx,eyeY+eyeOy,eRx,eRy,0,0,Math.PI*2); ctx.fill();
   ctx.shadowBlur=0;
 
-  // mouth
-  const mY = H*0.75;
-  const mW = W*0.20;
-
-  if(fThinking){
-    // dots
+  const mY=H*.75, mW=W*.20;
+  if(fThink){
     for(let i=0;i<3;i++){
-      const b = Math.sin(thinkP+i*1.1)*6;
-      ctx.fillStyle=`rgba(255,255,255,${0.4+Math.sin(thinkP+i*1.1)*0.3})`;
-      ctx.beginPath();
-      ctx.arc(W/2-16+i*16, mY+b, 5, 0, Math.PI*2);
-      ctx.fill();
+      const b=Math.sin(thinkP+i*1.1)*6;
+      ctx.fillStyle=`rgba(255,255,255,${.35+Math.sin(thinkP+i*1.1)*.25})`;
+      ctx.beginPath(); ctx.arc(W/2-16+i*16,mY+b,5,0,Math.PI*2); ctx.fill();
     }
-  } else if(fSpeaking && mOpen>0.04){
+  } else if(fSpeak&&mOpen>.04){
     ctx.fillStyle='#fff';
     ctx.beginPath();
-    ctx.ellipse(W/2, mY, mW, Math.max(4, H*0.11*mOpen), 0, 0, Math.PI*2);
-    ctx.fill();
+    ctx.ellipse(W/2,mY,mW,Math.max(4,H*.11*mOpen),0,0,Math.PI*2); ctx.fill();
   } else {
-    // smile
-    ctx.strokeStyle='#fff';
-    ctx.lineWidth=5; ctx.lineCap='round';
-    ctx.beginPath();
-    ctx.arc(W/2, mY-10, mW, 0.13*Math.PI, 0.87*Math.PI);
-    ctx.stroke();
+    ctx.strokeStyle='#fff'; ctx.lineWidth=5; ctx.lineCap='round';
+    ctx.beginPath(); ctx.arc(W/2,mY-10,mW,.13*Math.PI,.87*Math.PI); ctx.stroke();
   }
 }
 
 (function loop(){
   frame++;
-  // blink
   blinkT++;
-  if(!blink && blinkT>200){ blink=true; setTimeout(()=>{blink=false;blinkT=0;},120); }
-  // eye wander
+  if(!blink&&blinkT>200){ blink=true; setTimeout(()=>{blink=false;blinkT=0;},120); }
   eyeTimer--;
-  if(eyeTimer<=0){
-    eyeTx=(Math.random()-0.5)*14;
-    eyeTy=(Math.random()-0.5)*8;
-    eyeTimer=120+Math.random()*120;
-  }
-  eyeOx+=(eyeTx-eyeOx)*0.05;
-  eyeOy+=(eyeTy-eyeOy)*0.05;
-  // mouth
-  if(fSpeaking){ mPhase+=0.18; mOpen=(Math.sin(mPhase)+1)/2; }
-  else { mOpen*=0.8; }
-  if(fThinking) thinkP+=0.1;
+  if(eyeTimer<=0){ eyeTx=(Math.random()-.5)*14; eyeTy=(Math.random()-.5)*8; eyeTimer=100+Math.random()*120; }
+  eyeOx+=(eyeTx-eyeOx)*.05; eyeOy+=(eyeTy-eyeOy)*.05;
+  if(fSpeak){ mPhase+=.18; mOpen=(Math.sin(mPhase)+1)/2; } else { mOpen*=.8; }
+  if(fThink) thinkP+=.1;
   drawFace();
   requestAnimationFrame(loop);
 })();
 
-/* ── SETTINGS ── */
-function saveKey(){
-  const k=document.getElementById('keyInput').value.trim();
-  if(!k.startsWith('sk-')){ alert('Kein gültiger Key (muss mit sk- beginnen)'); return; }
-  localStorage.setItem('snob_key',k);
-  document.getElementById('overlay').classList.add('hidden');
-  greet();
-}
-function openSettings(){
-  const k=localStorage.getItem('snob_key')||'';
-  document.getElementById('keyInput').value=k;
-  document.getElementById('overlay').classList.remove('hidden');
-}
-window.addEventListener('load',()=>{
-  greet();
-});
+/* ── SNOB RESPONSES ── */
+const SNOB_BRAIN = [
+  { k:['hallo','hi ','hey','servus','guten tag','guten morgen','grüß'],
+    r:['Hallo. Ich hoffe, du hast etwas Wichtiges zu sagen.',
+       'Hey. Kurz und gut, bitte.',
+       'Ah, Besuch. Was verschafft mir die Ehre?'] },
+  { k:['was bist','wer bist','wer sind','was ist snob','was ist gosnob','about','über snob','über gosnob','erklär'],
+    r:['GoSNOB ist die exklusivste Lifestyle-Plattform. Nichts für jeden — und das ist der Punkt.',
+       'Ich bin Snob. GoSNOB ist der Ort für Leute mit Geschmack. Du scheinst neugierig — gut.',
+       'GoSNOB? Exklusiv, stilvoll, nicht für die Masse. Willkommen, wenn du dazugehörst.'] },
+  { k:['mitglied','member','beitreten','join','anmelden','registrier','mitmach'],
+    r:['Mitglied werden? Man wird nicht einfach Mitglied. Man wird ausgewählt.',
+       'Besuch gosnob.com und bewirbst dich. Ob du genommen wirst — das entscheiden wir.',
+       'Bewirb dich auf gosnob.com. Aber sei dir bewusst: Wir sind wählerisch.'] },
+  { k:['preis','price','kosten','cost','wie viel','how much','euro','günstig','teuer'],
+    r:['Wenn du als erstes nach dem Preis fragst, bist du vielleicht nicht die Zielgruppe.',
+       'GoSNOB hat seinen Wert. Besuch unsere Website für Details.',
+       'Qualität hat ihren Preis. Wer das versteht, ist willkommen.'] },
+  { k:['produkt','kollektion','collection','mode','fashion','kleidung','clothing','was verkauf'],
+    r:['GoSNOB kuratiert das Beste — Lifestyle, Mode, Community. Nichts Mittelmäßiges.',
+       'Unsere Kollektion? Handverlesen, exklusiv, zeitlos. So wie wir.',
+       'Mode die bleibt. Kein Fast Fashion — nur das Beste.'] },
+  { k:['kontakt','contact','email','mail','erreichen','reach','sprechen','anruf'],
+    r:['Kontakt über gosnob.com — der schnellste Weg zu uns.',
+       'Schreib uns auf gosnob.com. Wir antworten, wenn es passt.',
+       'Über unsere Website erreichst du uns. Manchmal sogar schnell.'] },
+  { k:['wo','where','standort','location','sitz','based','herkunft','österreich','deutsch','schweiz'],
+    r:['GoSNOB kennt keine Grenzen. Aber unsere Wurzeln? Europäisch. Stilvoll. Natürlich.',
+       'Wir sind dort wo der gute Geschmack ist. Das reicht als Antwort.',
+       'Europa. Mehr musst du nicht wissen.'] },
+  { k:['danke','thank','merci','grazie','dankeschön'],
+    r:['Gern. So sollte es sein.',
+       'Du bist höflich. Das mag ich.',
+       'Bitte. Und komm wieder — mit guten Fragen.'] },
+  { k:['tschüss','bye','ciao','auf wiedersehen','bis dann','later'],
+    r:['Auf Wiedersehen. Bleib stilvoll.',
+       'Ciao. War ein Vergnügen — meistens.',
+       'Tschüss. Komm wieder wenn du mehr wissen willst.'] },
+  { k:['wie geht','how are','alles gut','wie läuft'],
+    r:['Mir geht es ausgezeichnet. Snob ist immer ausgezeichnet.',
+       'Bestens, danke. Ich bin schließlich Snob.',
+       'Fabelhaft, wie immer. Und dir?'] },
+  { k:['witzig','lustig','lachen','witz','joke','humor'],
+    r:['Humor? Ich bin bereits der Witz und die Pointe gleichzeitig.',
+       'Mein Leben ist unterhaltsamer als jeder Witz.',
+       'Ich bin von Natur aus amüsant. Das reicht.'] },
+  { k:['liebe','love','romantisch','date','verlieb'],
+    r:['Liebe? GoSNOB ist eine Leidenschaft. Das reicht mir.',
+       'Romantisch? Ich bin verliebt in guten Stil. Das ist genug.',
+       'Frag mich was Wichtiges. Aber ja — auch Liebe braucht Stil.'] },
+];
 
-/* ── API ── */
-const SYSTEM=`Du bist Snob — frech, charmant arrogant, kurz.
-Antworte auf Deutsch oder Englisch je nach Sprache des Users.
-Max 2 Sätze. Keine langen Reden.`;
+const FALLBACK = [
+  'Interessante Frage. Ich denke drüber nach... nein. Frag was über GoSNOB.',
+  'Das ist außerhalb meines Horizonts. Und mein Horizont ist bereits sehr weit.',
+  'Hmm. Frag mich lieber etwas über GoSNOB — da bin ich unschlagbar.',
+  'Keine Ahnung. Aber Stil? Den habe ich. GoSNOB auch.',
+  'Gute Frage. Schlechte Antwort von mir. Frag nach GoSNOB stattdessen.',
+];
 
-async function ask(txt){
-  const key=localStorage.getItem('snob_key');
-  if(!key){ openSettings(); return null; }
-  const r=await fetch('https://api.anthropic.com/v1/messages',{
-    method:'POST',
-    headers:{
-      'Content-Type':'application/json',
-      'x-api-key':key,
-      'anthropic-version':'2023-06-01',
-      'anthropic-dangerous-direct-browser-access':'true'
-    },
-    body:JSON.stringify({
-      model:'claude-haiku-4-5-20251001',
-      max_tokens:120,
-      system:SYSTEM,
-      messages:[{role:'user',content:txt}]
-    })
-  });
-  if(!r.ok) throw new Error('API '+r.status);
-  return (await r.json()).content[0].text;
+function snobReply(input) {
+  const t = input.toLowerCase();
+  for (const block of SNOB_BRAIN) {
+    if (block.k.some(k => t.includes(k))) {
+      return block.r[Math.floor(Math.random() * block.r.length)];
+    }
+  }
+  return FALLBACK[Math.floor(Math.random() * FALLBACK.length)];
 }
 
-/* ── SPEECH ── */
-function speak(txt, onDone){
+/* ── TTS ── */
+function speak(txt, onDone) {
   window.speechSynthesis.cancel();
-  const u=new SpeechSynthesisUtterance(txt);
-  u.lang='de-DE'; u.rate=1.05;
-  u.onstart=()=>{ fSpeaking=true; setGlow(true); };
-  u.onend=()=>{ fSpeaking=false; setGlow(false); if(onDone) onDone(); };
-  fSpeaking=true; setGlow(true);
+  const u = new SpeechSynthesisUtterance(txt);
+  u.lang = 'de-DE'; u.rate = 1.02; u.pitch = 0.95;
+  u.onstart = () => { fSpeak=true; glow(true); };
+  u.onend   = () => { fSpeak=false; glow(false); if(onDone) onDone(); };
+  fSpeak=true; glow(true);
   window.speechSynthesis.speak(u);
 }
 
-function greet(){
-  setStatus('');
-  setTimeout(()=>{
-    speak('Hey. Ich bin Snob. Was willst du wissen?');
-  }, 600);
+function glow(on){ document.getElementById('glow').classList.toggle('on',on); }
+function setStatus(t,lit=false){
+  const el=document.getElementById('status');
+  el.textContent=t; el.classList.toggle('lit',lit);
 }
 
-function setGlow(on){ document.getElementById('glow').classList.toggle('active',on); }
-function setStatus(t,active=false){
-  const el=document.getElementById('status');
-  el.textContent=t;
-  el.classList.toggle('active',active);
-}
+/* ── GREET ── */
+window.addEventListener('load',()=>{
+  setTimeout(()=>{ speak('Hey. Ich bin Snob. Frag mich alles über GoSNOB.'); },500);
+});
 
 /* ── VOICE ── */
-const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 let recog=null, listening=false;
 
 if(SR){
-  recog=new SR();
+  recog = new SR();
   recog.continuous=false; recog.interimResults=false; recog.lang='de-DE';
-  recog.onresult=async(e)=>{
-    const txt=e.results[0][0].transcript;
+
+  recog.onresult = (e) => {
+    const txt = e.results[0][0].transcript;
     stopListen();
     setStatus(txt);
-    fThinking=true; setStatus('…',true);
-    try{
-      const reply=await ask(txt);
-      fThinking=false;
-      if(reply) speak(reply,()=>setStatus(''));
-    } catch(err){
-      fThinking=false;
-      setStatus('Fehler :(');
-      speak('Da ist was schiefgelaufen. Versuch es nochmal.');
-    }
+    fThink=true;
+    setTimeout(()=>{
+      fThink=false;
+      const reply = snobReply(txt);
+      setStatus('');
+      speak(reply);
+    }, 600);
   };
-  recog.onerror=()=>{ stopListen(); setStatus(''); };
-  recog.onend=()=>{ if(listening) stopListen(); };
+  recog.onerror = ()=>{ stopListen(); setStatus(''); };
+  recog.onend   = ()=>{ if(listening) stopListen(); };
 }
 
 function toggleListen(){
-  if(!recog){ setStatus('Chrome verwenden'); return; }
+  if(!recog){ setStatus('Chrome oder Safari verwenden'); return; }
   if(listening){ stopListen(); return; }
-  window.speechSynthesis.cancel();
-  fSpeaking=false;
-  recog.start();
-  listening=true;
-  fListening=true;
-  document.getElementById('micBtn').classList.add('listening');
+  window.speechSynthesis.cancel(); fSpeak=false; glow(false);
+  recog.start(); listening=true; fListen=true;
+  document.getElementById('micBtn').classList.add('on');
   document.getElementById('micLabel').textContent='Stopp';
   setStatus('Ich höre…',true);
 }
 function stopListen(){
   try{ recog.stop(); }catch(e){}
-  listening=false; fListening=false;
-  document.getElementById('micBtn').classList.remove('listening');
+  listening=false; fListen=false;
+  document.getElementById('micBtn').classList.remove('on');
   document.getElementById('micLabel').textContent='Tippen';
+  if(!fSpeak) setStatus('');
 }
 </script>
 </body>
