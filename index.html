@@ -189,7 +189,7 @@
   <button class="gear" onclick="openSettings()">⚙</button>
 
   <!-- Settings -->
-  <div class="overlay" id="overlay">
+  <div class="overlay hidden" id="overlay">
     <div class="card">
       <h2>Snob einrichten</h2>
       <p>Anthropic API-Key eingeben.<br>Wird nur lokal gespeichert.<br>
@@ -326,8 +326,7 @@ function openSettings(){
   document.getElementById('overlay').classList.remove('hidden');
 }
 window.addEventListener('load',()=>{
-  if(!localStorage.getItem('snob_key')) openSettings();
-  else greet();
+  greet();
 });
 
 /* ── API ── */
