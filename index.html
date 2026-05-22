@@ -5,274 +5,259 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
   <title>Snob</title>
   <style>
-    * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-    body {
-      background:#000;
-      min-height:100dvh;
-      display:flex; flex-direction:column;
-      align-items:center; justify-content:center;
-      font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      overflow:hidden; position:relative;
-      user-select:none;
+    *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+    html,body{width:100%;height:100%;overflow:hidden;background:#000;cursor:pointer;}
+    canvas{position:fixed;top:0;left:0;width:100%;height:100%;}
+    #hint{
+      position:fixed;bottom:52px;left:50%;transform:translateX(-50%);
+      color:rgba(255,255,255,0.18);font-size:11px;letter-spacing:4px;
+      text-transform:uppercase;font-family:-apple-system,BlinkMacSystemFont,sans-serif;
+      pointer-events:none;transition:opacity 1.2s;
     }
-    .glow {
-      position:absolute;
-      width:360px; height:260px;
-      border-radius:50%;
-      background:radial-gradient(ellipse, rgba(180,0,255,0.2) 0%, transparent 70%);
-      filter:blur(30px);
-      opacity:0; transition:opacity 0.5s;
-      pointer-events:none;
-    }
-    .glow.on { opacity:1; }
-    canvas {
-      display:block; width:300px; height:200px;
-      border-radius:36px; position:relative; z-index:1;
-    }
-    .name {
-      color:#fff; font-size:34px; font-weight:900;
-      letter-spacing:8px; margin-top:28px; z-index:1;
-    }
-    .status {
-      color:rgba(255,255,255,0.3); font-size:13px;
-      margin-top:10px; height:20px; z-index:1;
-      text-align:center; transition:color .3s;
-      max-width:280px; line-height:1.4;
-    }
-    .status.lit { color:rgba(200,100,255,0.85); }
-    .mic-wrap { margin-top:46px; z-index:1; }
-    .mic-btn {
-      width:72px; height:72px; border-radius:50%;
-      background:rgba(255,255,255,0.06);
-      border:1.5px solid rgba(255,255,255,0.14);
-      color:#fff; font-size:30px; cursor:pointer;
-      display:flex; align-items:center; justify-content:center;
-      transition:all .25s; position:relative;
-    }
-    .mic-btn.on {
-      background:rgba(180,0,255,0.22);
-      border-color:rgba(180,0,255,0.7);
-      box-shadow:0 0 28px rgba(180,0,255,0.45);
-      animation:pulse 1.4s infinite;
-    }
-    @keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.07)} }
-    .mic-label {
-      color:rgba(255,255,255,0.2); font-size:11px;
-      letter-spacing:2px; text-transform:uppercase;
-      margin-top:12px; text-align:center;
+    #status{
+      position:fixed;bottom:78px;left:50%;transform:translateX(-50%);
+      color:rgba(180,80,255,0.8);font-size:13px;letter-spacing:1px;
+      font-family:-apple-system,BlinkMacSystemFont,sans-serif;
+      pointer-events:none;text-align:center;width:280px;
     }
   </style>
 </head>
 <body>
-  <div class="glow" id="glow"></div>
-  <canvas id="face" width="600" height="400"></canvas>
-  <div class="name">SNOB</div>
-  <div class="status" id="status"></div>
-  <div class="mic-wrap">
-    <button class="mic-btn" id="micBtn" onclick="toggleListen()">🎤</button>
-    <div class="mic-label" id="micLabel">Tippen</div>
-  </div>
-
+<canvas id="c"></canvas>
+<div id="hint">BERÜHREN</div>
+<div id="status"></div>
 <script>
-/* ── FACE ── */
-const cv = document.getElementById('face');
-const ctx = cv.getContext('2d');
-if (!ctx.roundRect) {
-  CanvasRenderingContext2D.prototype.roundRect = function(x,y,w,h,r){
-    this.beginPath();
-    this.moveTo(x+r,y); this.lineTo(x+w-r,y);
-    this.quadraticCurveTo(x+w,y,x+w,y+r); this.lineTo(x+w,y+h-r);
-    this.quadraticCurveTo(x+w,y+h,x+w-r,y+h); this.lineTo(x+r,y+h);
-    this.quadraticCurveTo(x,y+h,x,y+h-r); this.lineTo(x,y+r);
-    this.quadraticCurveTo(x,y,x+r,y); this.closePath();
-  };
+const cv=document.getElementById('c'), ctx=cv.getContext('2d');
+let W,H,DPR;
+function resize(){
+  DPR=Math.min(window.devicePixelRatio||1,3);
+  W=window.innerWidth; H=window.innerHeight;
+  cv.width=W*DPR; cv.height=H*DPR;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
 }
+resize();
+window.addEventListener('resize',resize);
 
-let fSpeak=false, fThink=false, fListen=false;
-let blink=false, blinkT=0;
-let mOpen=0, mPhase=0, thinkP=0, frame=0;
-let eyeOx=0, eyeOy=0, eyeTx=0, eyeTy=0, eyeTimer=0;
+/* ── STATE ── */
+let fSpeak=false,fListen=false,fThink=false;
+let mOpen=0,mPhase=0,thinkP=0,frame=0;
+let lEyeY=1,rEyeY=1; // wink scale
+let eyeOx=0,eyeOy=0,eyeTx=0,eyeTy=0,eyeWand=0;
+let tongueV=0,tongueT=0; // tongue visibility & target
+let glowA=0,glowR=180,glowG=0,glowB=255;
+let exprTimer=180,busy=false;
+let greeted=false;
 
-function drawFace(){
-  const W=cv.width, H=cv.height;
+/* ── ANIM QUEUE ── */
+const anims=[];
+function anim(ms,fn,done){anims.push({s:Date.now(),ms,fn,done});}
+function tickAnims(){
+  const now=Date.now();
+  for(let i=anims.length-1;i>=0;i--){
+    const a=anims[i],p=Math.min(1,(now-a.s)/a.ms);
+    a.fn(p);
+    if(p>=1){if(a.done)a.done();anims.splice(i,1);}
+  }
+}
+const eio=t=>t<.5?2*t*t:1-((-2*t+2)**2)/2;
+const eo=t=>1-(1-t)**3;
+
+/* ── EXPRESSIONS ── */
+function wink(side){
+  if(busy)return;busy=true;
+  const set=v=>{if(side==='L')lEyeY=v;else rEyeY=v;};
+  anim(140,p=>set(1-p),()=>anim(300,()=>{},()=>anim(140,p=>set(p),()=>{if(side==='L')lEyeY=1;else rEyeY=1;busy=false;})));
+}
+function tongue(){
+  if(busy)return;busy=true;
+  anim(200,p=>{tongueV=p;mOpen=p*0.35;},()=>anim(700,()=>{},()=>anim(220,p=>{tongueV=1-p;mOpen=(1-p)*0.35;},()=>{tongueV=0;mOpen=0;busy=false;})));
+}
+function squint(){
+  if(busy)return;busy=true;
+  anim(180,p=>{lEyeY=1-p*.72;rEyeY=1-p*.72;},()=>anim(500,()=>{},()=>anim(180,p=>{lEyeY=.28+p*.72;rEyeY=.28+p*.72;},()=>{lEyeY=1;rEyeY=1;busy=false;})));
+}
+function eyeRoll(){
+  if(busy)return;busy=true;
+  const r=H*.045;
+  anim(900,p=>{const a=p*Math.PI*2-Math.PI/2;eyeTx=Math.cos(a)*r;eyeTy=Math.sin(a)*r;},()=>{eyeTx=0;eyeTy=0;busy=false;});
+}
+function surprise(){
+  if(busy)return;busy=true;
+  anim(130,p=>{lEyeY=1+p*.45;rEyeY=1+p*.45;},()=>anim(350,()=>{},()=>anim(180,p=>{lEyeY=1.45-p*.45;rEyeY=1.45-p*.45;},()=>{lEyeY=1;rEyeY=1;busy=false;})));
+}
+function sassy(){
+  // one eye bigger, one smaller — smug look
+  if(busy)return;busy=true;
+  anim(200,p=>{lEyeY=1+p*.3;rEyeY=1-p*.5;},()=>anim(600,()=>{},()=>anim(200,p=>{lEyeY=1.3-p*.3;rEyeY=.5+p*.5;},()=>{lEyeY=1;rEyeY=1;busy=false;})));
+}
+function lookAway(){
+  if(busy)return;busy=true;
+  const dir=(Math.random()>.5?1:-1)*W*.06;
+  anim(200,p=>{eyeTx=p*dir;},()=>anim(800,()=>{},()=>anim(200,p=>{eyeTx=dir*(1-p);},()=>{eyeTx=0;busy=false;})));
+}
+const EXPRS=[()=>wink('L'),()=>wink('R'),tongue,squint,eyeRoll,surprise,sassy,lookAway];
+
+/* ── DRAW ── */
+function draw(){
   ctx.clearRect(0,0,W,H);
-  ctx.fillStyle='#111';
-  ctx.roundRect(0,0,W,H,50); ctx.fill();
+  ctx.fillStyle='#000';
+  ctx.fillRect(0,0,W,H);
 
-  const eyeY=H*.41, lx=W*.31+eyeOx, rx=W*.69+eyeOx;
-  const eRx=W*.13, eRy=blink?3:H*.22;
+  // radial glow
+  if(glowA>.01){
+    const g=ctx.createRadialGradient(W/2,H*.4,0,W/2,H*.4,W*.65);
+    g.addColorStop(0,`rgba(${glowR},${glowG},${glowB},${glowA*.3})`);
+    g.addColorStop(1,'transparent');
+    ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  }
 
-  if(fSpeak){ ctx.shadowColor='rgba(180,0,255,.55)'; ctx.shadowBlur=22; }
-  else if(fListen){ ctx.shadowColor='rgba(0,200,255,.4)'; ctx.shadowBlur=16; }
-  else { ctx.shadowBlur=0; }
+  // ── EYES ──
+  const eY=H*.36, lx=W*.30+eyeOx, rx=W*.70+eyeOx, oY=eyeOy;
+  const eRx=W*.145, eRyBase=H*.195;
+  const lRy=eRyBase*lEyeY, rRy=eRyBase*rEyeY;
+
+  if(fSpeak){ctx.shadowColor='rgba(180,0,255,.7)';ctx.shadowBlur=28;}
+  else if(fListen){ctx.shadowColor='rgba(0,200,255,.6)';ctx.shadowBlur=22;}
+  else{ctx.shadowBlur=0;}
 
   ctx.fillStyle='#fff';
-  ctx.beginPath(); ctx.ellipse(lx,eyeY+eyeOy,eRx,eRy,0,0,Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(rx,eyeY+eyeOy,eRx,eRy,0,0,Math.PI*2); ctx.fill();
+  if(lRy>1.5){ctx.beginPath();ctx.ellipse(lx,eY+oY,eRx,lRy,0,0,Math.PI*2);ctx.fill();}
+  if(rRy>1.5){ctx.beginPath();ctx.ellipse(rx,eY+oY,eRx,rRy,0,0,Math.PI*2);ctx.fill();}
   ctx.shadowBlur=0;
 
-  const mY=H*.75, mW=W*.20;
+  // ── MOUTH ──
+  const mY=H*.72, mW=W*.17;
+
   if(fThink){
     for(let i=0;i<3;i++){
-      const b=Math.sin(thinkP+i*1.1)*6;
-      ctx.fillStyle=`rgba(255,255,255,${.35+Math.sin(thinkP+i*1.1)*.25})`;
-      ctx.beginPath(); ctx.arc(W/2-16+i*16,mY+b,5,0,Math.PI*2); ctx.fill();
+      const b=Math.sin(thinkP+i*1.15)*6;
+      ctx.fillStyle=`rgba(255,255,255,${.3+Math.sin(thinkP+i*1.15)*.25})`;
+      ctx.beginPath();ctx.arc(W/2-15+i*15,mY+b,5,0,Math.PI*2);ctx.fill();
     }
+  } else if(tongueV>.05){
+    const tO=Math.max(mOpen,0.3);
+    ctx.fillStyle='#fff';
+    ctx.beginPath();ctx.ellipse(W/2,mY,mW*.85,H*.06*tO,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#ff6b9d';
+    ctx.shadowColor='rgba(255,80,140,0.5)';ctx.shadowBlur=16;
+    ctx.beginPath();ctx.ellipse(W/2,mY+H*.06*tO+H*.05*tongueV,mW*.45,H*.06*tongueV,0,0,Math.PI*2);ctx.fill();
+    ctx.shadowBlur=0;
   } else if(fSpeak&&mOpen>.04){
     ctx.fillStyle='#fff';
-    ctx.beginPath();
-    ctx.ellipse(W/2,mY,mW,Math.max(4,H*.11*mOpen),0,0,Math.PI*2); ctx.fill();
+    ctx.shadowColor='rgba(255,255,255,.15)';ctx.shadowBlur=10;
+    ctx.beginPath();ctx.ellipse(W/2,mY,mW,Math.max(3,H*.115*mOpen),0,0,Math.PI*2);ctx.fill();
+    ctx.shadowBlur=0;
   } else {
-    ctx.strokeStyle='#fff'; ctx.lineWidth=5; ctx.lineCap='round';
-    ctx.beginPath(); ctx.arc(W/2,mY-10,mW,.13*Math.PI,.87*Math.PI); ctx.stroke();
+    ctx.strokeStyle='#fff';
+    ctx.lineWidth=Math.max(4,W*.009);ctx.lineCap='round';
+    ctx.shadowColor='rgba(255,255,255,.12)';ctx.shadowBlur=8;
+    ctx.beginPath();ctx.arc(W/2,mY-H*.025,mW,.12*Math.PI,.88*Math.PI);ctx.stroke();
+    ctx.shadowBlur=0;
   }
 }
 
+/* ── LOOP ── */
 (function loop(){
   frame++;
-  blinkT++;
-  if(!blink&&blinkT>200){ blink=true; setTimeout(()=>{blink=false;blinkT=0;},120); }
-  eyeTimer--;
-  if(eyeTimer<=0){ eyeTx=(Math.random()-.5)*14; eyeTy=(Math.random()-.5)*8; eyeTimer=100+Math.random()*120; }
-  eyeOx+=(eyeTx-eyeOx)*.05; eyeOy+=(eyeTy-eyeOy)*.05;
-  if(fSpeak){ mPhase+=.18; mOpen=(Math.sin(mPhase)+1)/2; } else { mOpen*=.8; }
-  if(fThink) thinkP+=.1;
-  drawFace();
+  tickAnims();
+  if(fSpeak){mPhase+=.16;mOpen=(Math.sin(mPhase)+1)/2*(0.5+Math.random()*.5);}
+  else if(!tongueV){mOpen*=.8;}
+  if(fThink)thinkP+=.1;
+  eyeWand--;
+  if(eyeWand<=0){eyeTx=(Math.random()-.5)*W*.04;eyeTy=(Math.random()-.5)*H*.025;eyeWand=80+Math.random()*120;}
+  eyeOx+=(eyeTx-eyeOx)*.05;eyeOy+=(eyeTy-eyeOy)*.05;
+  const tGlow=fSpeak?.9:fListen?.75:0;
+  glowA+=(tGlow-glowA)*.08;
+  if(fSpeak){glowR=180;glowG=0;glowB=255;}else{glowR=0;glowG=180;glowB=255;}
+  if(!busy&&!fSpeak&&!fListen&&!fThink&&greeted){
+    exprTimer--;
+    if(exprTimer<=0){exprTimer=180+Math.random()*250;EXPRS[Math.floor(Math.random()*EXPRS.length)]();}
+  }
+  draw();
   requestAnimationFrame(loop);
 })();
 
-/* ── SNOB RESPONSES ── */
-const SNOB_BRAIN = [
-  { k:['hallo','hi ','hey','servus','guten tag','guten morgen','grüß'],
-    r:['Hallo. Ich hoffe, du hast etwas Wichtiges zu sagen.',
-       'Hey. Kurz und gut, bitte.',
-       'Ah, Besuch. Was verschafft mir die Ehre?'] },
-  { k:['was bist','wer bist','wer sind','was ist snob','was ist gosnob','about','über snob','über gosnob','erklär'],
-    r:['GoSNOB ist die exklusivste Lifestyle-Plattform. Nichts für jeden — und das ist der Punkt.',
-       'Ich bin Snob. GoSNOB ist der Ort für Leute mit Geschmack. Du scheinst neugierig — gut.',
-       'GoSNOB? Exklusiv, stilvoll, nicht für die Masse. Willkommen, wenn du dazugehörst.'] },
-  { k:['mitglied','member','beitreten','join','anmelden','registrier','mitmach'],
-    r:['Mitglied werden? Man wird nicht einfach Mitglied. Man wird ausgewählt.',
-       'Besuch gosnob.com und bewirbst dich. Ob du genommen wirst — das entscheiden wir.',
-       'Bewirb dich auf gosnob.com. Aber sei dir bewusst: Wir sind wählerisch.'] },
-  { k:['preis','price','kosten','cost','wie viel','how much','euro','günstig','teuer'],
-    r:['Wenn du als erstes nach dem Preis fragst, bist du vielleicht nicht die Zielgruppe.',
-       'GoSNOB hat seinen Wert. Besuch unsere Website für Details.',
-       'Qualität hat ihren Preis. Wer das versteht, ist willkommen.'] },
-  { k:['produkt','kollektion','collection','mode','fashion','kleidung','clothing','was verkauf'],
-    r:['GoSNOB kuratiert das Beste — Lifestyle, Mode, Community. Nichts Mittelmäßiges.',
-       'Unsere Kollektion? Handverlesen, exklusiv, zeitlos. So wie wir.',
-       'Mode die bleibt. Kein Fast Fashion — nur das Beste.'] },
-  { k:['kontakt','contact','email','mail','erreichen','reach','sprechen','anruf'],
-    r:['Kontakt über gosnob.com — der schnellste Weg zu uns.',
-       'Schreib uns auf gosnob.com. Wir antworten, wenn es passt.',
-       'Über unsere Website erreichst du uns. Manchmal sogar schnell.'] },
-  { k:['wo','where','standort','location','sitz','based','herkunft','österreich','deutsch','schweiz'],
-    r:['GoSNOB kennt keine Grenzen. Aber unsere Wurzeln? Europäisch. Stilvoll. Natürlich.',
-       'Wir sind dort wo der gute Geschmack ist. Das reicht als Antwort.',
-       'Europa. Mehr musst du nicht wissen.'] },
-  { k:['danke','thank','merci','grazie','dankeschön'],
-    r:['Gern. So sollte es sein.',
-       'Du bist höflich. Das mag ich.',
-       'Bitte. Und komm wieder — mit guten Fragen.'] },
-  { k:['tschüss','bye','ciao','auf wiedersehen','bis dann','later'],
-    r:['Auf Wiedersehen. Bleib stilvoll.',
-       'Ciao. War ein Vergnügen — meistens.',
-       'Tschüss. Komm wieder wenn du mehr wissen willst.'] },
-  { k:['wie geht','how are','alles gut','wie läuft'],
-    r:['Mir geht es ausgezeichnet. Snob ist immer ausgezeichnet.',
-       'Bestens, danke. Ich bin schließlich Snob.',
-       'Fabelhaft, wie immer. Und dir?'] },
-  { k:['witzig','lustig','lachen','witz','joke','humor'],
-    r:['Humor? Ich bin bereits der Witz und die Pointe gleichzeitig.',
-       'Mein Leben ist unterhaltsamer als jeder Witz.',
-       'Ich bin von Natur aus amüsant. Das reicht.'] },
-  { k:['liebe','love','romantisch','date','verlieb'],
-    r:['Liebe? GoSNOB ist eine Leidenschaft. Das reicht mir.',
-       'Romantisch? Ich bin verliebt in guten Stil. Das ist genug.',
-       'Frag mich was Wichtiges. Aber ja — auch Liebe braucht Stil.'] },
+/* ── SNOB BRAIN ── */
+const BRAIN=[
+  {k:['hallo','hi ','hey ','servus','guten tag','guten morgen','grüß'],r:['Hallo. Ich hoffe du hast etwas Wichtiges zu sagen.','Hey. Kurz und gut, bitte.','Ah. Was verschafft mir die Ehre?']},
+  {k:['was bist','wer bist','was ist snob','was ist gosnob','erklär','about','über'],r:['GoSNOB ist die exklusivste Lifestyle-Plattform. Nichts für jeden.','Ich bin Snob. GoSNOB ist der Ort für Leute mit Geschmack.','GoSNOB — exklusiv, stilvoll, nicht für die Masse.']},
+  {k:['mitglied','member','beitreten','join','anmeld'],r:['Man wird nicht einfach Mitglied. Man wird ausgewählt.','Bewirbst du dich auf gosnob.com. Ob du genommen wirst — das entscheiden wir.']},
+  {k:['preis','kosten','wie viel','günstig','teuer','cost'],r:['Wenn du als erstes nach dem Preis fragst — nicht die Zielgruppe.','Qualität hat ihren Preis. Wer das versteht, ist willkommen.']},
+  {k:['produkt','kollektion','mode','fashion','kleidung'],r:['GoSNOB kuratiert das Beste. Nichts Mittelmäßiges.','Handverlesen, exklusiv, zeitlos. So wie wir.']},
+  {k:['kontakt','contact','email','erreichen'],r:['Kontakt über gosnob.com — schnellster Weg zu uns.']},
+  {k:['danke','thank','merci'],r:['Gern. So sollte es sein.','Du bist höflich. Das mag ich.']},
+  {k:['tschüss','bye','ciao','auf wiedersehen'],r:['Auf Wiedersehen. Bleib stilvoll.','Ciao. War ein Vergnügen.']},
+  {k:['wie geht','how are','alles gut'],r:['Ausgezeichnet. Snob ist immer ausgezeichnet.','Bestens. Ich bin schließlich Snob.']},
+  {k:['witzig','lustig','witz','joke'],r:['Ich bin bereits der Witz und die Pointe gleichzeitig.','Mein Leben ist unterhaltsamer als jeder Witz.']},
+  {k:['zunge','tongue','zeig'],r:['Du wolltest meine Zunge sehen? Na gut.']},
+  {k:['zwink','wink','blink'],r:['Für dich mache ich eine Ausnahme.']},
+  {k:['liebe','love','romantisch'],r:['Ich bin verliebt in guten Stil. Das reicht mir.']},
 ];
+const FALLBACK=['Interessante Frage. Frag was über GoSNOB.','Das ist außerhalb meines Horizonts.','Hmm. Frag lieber über GoSNOB — da bin ich unschlagbar.','Keine Ahnung. Aber Stil? Den habe ich.'];
 
-const FALLBACK = [
-  'Interessante Frage. Ich denke drüber nach... nein. Frag was über GoSNOB.',
-  'Das ist außerhalb meines Horizonts. Und mein Horizont ist bereits sehr weit.',
-  'Hmm. Frag mich lieber etwas über GoSNOB — da bin ich unschlagbar.',
-  'Keine Ahnung. Aber Stil? Den habe ich. GoSNOB auch.',
-  'Gute Frage. Schlechte Antwort von mir. Frag nach GoSNOB stattdessen.',
-];
-
-function snobReply(input) {
-  const t = input.toLowerCase();
-  for (const block of SNOB_BRAIN) {
-    if (block.k.some(k => t.includes(k))) {
-      return block.r[Math.floor(Math.random() * block.r.length)];
-    }
-  }
-  return FALLBACK[Math.floor(Math.random() * FALLBACK.length)];
+function snobReply(txt){
+  const t=txt.toLowerCase();
+  if(t.includes('zunge')||t.includes('tongue'))setTimeout(tongue,400);
+  if(t.includes('zwink')||t.includes('wink'))setTimeout(()=>wink(Math.random()>.5?'L':'R'),200);
+  for(const b of BRAIN)if(b.k.some(k=>t.includes(k)))return b.r[Math.floor(Math.random()*b.r.length)];
+  return FALLBACK[Math.floor(Math.random()*FALLBACK.length)];
 }
 
 /* ── TTS ── */
-function speak(txt, onDone) {
+function speak(txt,done){
   window.speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(txt);
-  u.lang = 'de-DE'; u.rate = 1.02; u.pitch = 0.95;
-  u.onstart = () => { fSpeak=true; glow(true); };
-  u.onend   = () => { fSpeak=false; glow(false); if(onDone) onDone(); };
-  fSpeak=true; glow(true);
-  window.speechSynthesis.speak(u);
+  const u=new SpeechSynthesisUtterance(txt);
+  u.lang='de-DE';u.rate=1.02;u.pitch=0.95;
+  u.onstart=()=>{fSpeak=true;};
+  u.onend=()=>{fSpeak=false;if(done)done();};
+  fSpeak=true;window.speechSynthesis.speak(u);
 }
 
-function glow(on){ document.getElementById('glow').classList.toggle('on',on); }
-function setStatus(t,lit=false){
-  const el=document.getElementById('status');
-  el.textContent=t; el.classList.toggle('lit',lit);
+/* ── GREETING ── */
+function greet(){
+  if(greeted)return;greeted=true;
+  const h=document.getElementById('hint');h.style.opacity='0';
+  surprise();
+  setTimeout(()=>speak('Hey. Ich bin Snob. Frag mich alles über GoSNOB.'),400);
 }
-
-/* ── GREET ── */
-window.addEventListener('load',()=>{
-  setTimeout(()=>{ speak('Hey. Ich bin Snob. Frag mich alles über GoSNOB.'); },500);
-});
 
 /* ── VOICE ── */
-const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-let recog=null, listening=false;
-
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+let recog=null,listening=false;
 if(SR){
-  recog = new SR();
-  recog.continuous=false; recog.interimResults=false; recog.lang='de-DE';
-
-  recog.onresult = (e) => {
-    const txt = e.results[0][0].transcript;
+  recog=new SR();
+  recog.continuous=false;recog.interimResults=false;recog.lang='de-DE';
+  recog.onresult=e=>{
     stopListen();
-    setStatus(txt);
     fThink=true;
-    setTimeout(()=>{
-      fThink=false;
-      const reply = snobReply(txt);
-      setStatus('');
-      speak(reply);
-    }, 600);
+    const txt=e.results[0][0].transcript;
+    document.getElementById('status').textContent='';
+    setTimeout(()=>{fThink=false;speak(snobReply(txt));},500);
   };
-  recog.onerror = ()=>{ stopListen(); setStatus(''); };
-  recog.onend   = ()=>{ if(listening) stopListen(); };
+  recog.onerror=()=>{stopListen();};
+  recog.onend=()=>{if(listening)stopListen();};
 }
-
-function toggleListen(){
-  if(!recog){ setStatus('Chrome oder Safari verwenden'); return; }
-  if(listening){ stopListen(); return; }
-  window.speechSynthesis.cancel(); fSpeak=false; glow(false);
-  recog.start(); listening=true; fListen=true;
-  document.getElementById('micBtn').classList.add('on');
-  document.getElementById('micLabel').textContent='Stopp';
-  setStatus('Ich höre…',true);
+function startListen(){
+  if(!recog)return;
+  window.speechSynthesis.cancel();fSpeak=false;
+  recog.start();listening=true;fListen=true;
+  document.getElementById('status').textContent='Ich höre…';
 }
 function stopListen(){
-  try{ recog.stop(); }catch(e){}
-  listening=false; fListen=false;
-  document.getElementById('micBtn').classList.remove('on');
-  document.getElementById('micLabel').textContent='Tippen';
-  if(!fSpeak) setStatus('');
+  try{recog.stop();}catch(e){}
+  listening=false;fListen=false;
+  document.getElementById('status').textContent='';
 }
+
+/* ── TAP ── */
+function tap(){
+  if(!greeted){greet();return;}
+  if(fSpeak){window.speechSynthesis.cancel();fSpeak=false;return;}
+  if(listening){stopListen();return;}
+  startListen();
+}
+document.addEventListener('click',tap);
+document.addEventListener('touchend',e=>{e.preventDefault();tap();},{passive:false});
 </script>
 </body>
 </html>
