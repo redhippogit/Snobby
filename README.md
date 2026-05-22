@@ -1,25 +1,12 @@
-# Snob KI Agent
+# Snobby — Snob KI Agent
 
 Animated voice + chat agent for GoSNOB. Deployable on GitHub Pages, testable on mobile.
 
 ## Deploy to GitHub Pages
 
-```bash
-# 1. Create a new GitHub repo (e.g. "snob-agent")
+Go to: **Settings → Pages → Source: Deploy from branch → main / root → Save**
 
-# 2. Push this folder
-cd /Users/henry/snob-agent
-git init
-git add .
-git commit -m "initial snob agent"
-git remote add origin https://github.com/DEIN-USERNAME/snob-agent.git
-git push -u origin main
-
-# 3. Enable GitHub Pages
-# GitHub → Settings → Pages → Source: "Deploy from branch" → main / root → Save
-```
-
-The live URL will be: `https://DEIN-USERNAME.github.io/snob-agent/`
+Live URL: `https://redhippogit.github.io/Snobby/`
 
 ## Setup on mobile
 
@@ -38,5 +25,5 @@ The live URL will be: `https://DEIN-USERNAME.github.io/snob-agent/`
 ## Notes
 
 - Voice recognition requires **Chrome on Android** or **Safari on iOS**
-- API calls go directly to Anthropic from your browser (uses `anthropic-dangerous-direct-browser-access` header)
-- Model used: `claude-haiku-4-5` (fast + cheap for testing)
+- API calls go directly to Anthropic from your browser
+- Model: `claude-haiku-4-5` (fast + cheap for testing)
