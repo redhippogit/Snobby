@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Snob KI Agent</title>
+  <style>
+    :root {
+      --pink: #d400ff;
+      --pink2: #ff00cc;
+      --bg: #f7f7f7;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      min-height: 100dvh;
+      display: flex;
+      justify-content: center;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 430px;
+      min-height: 100dvh;
+      background: #fff;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    /* ── HEADER ── */
+    .header {
+      background: linear-gradient(135deg, var(--pink), var(--pink2));
+      padding: 18px 20px 18px 16px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .header-avatar {
+      width: 52px; height: 52px;
+      background: rgba(255,255,255,0.22);
+      border-radius: 16px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 26px;
+      flex-shrink: 0;
+    }
+    .header-info { flex: 1 }
+    .header-info h1 { color: #fff; font-size: 19px; font-weight: 800; line-height: 1.2; }
+    .header-info p  { color: rgba(255,255,255,.8); font-size: 13px; margin-top: 2px; }
+    .settings-btn {
+      width: 36px; height: 36px;
+      background: rgba(255,255,255,0.2);
+      border: none; border-radius: 50%;
+      color: #fff; font-size: 18px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    /* ── TABS ── */
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid #eee;
+    }
+    .tab {
+      flex: 1; padding: 13px 8px;
+      border: none; background: none;
+      font-size: 15px; font-weight: 600;
+      cursor: pointer; color: #aaa;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      transition: all .2s;
+    }
+    .tab.active { background: linear-gradient(135deg, var(--pink), var(--pink2)); color: #fff; }
+
+    /* ── VOICE SECTION ── */
+    #voiceSection {
+      flex: 1; display: flex; flex-direction: column; align-items: center;
+      padding: 28px 20px 20px;
+      overflow-y: auto;
+    }
+
+    /* Face canvas */
+    .face-wrapper {
+      width: 220px; height: 148px;
+      border-radius: 28px;
+      overflow: hidden;
+      box-shadow: 0 10px 40px rgba(0,0,0,.35);
+    }
+    #snobFace { display: block; width: 220px; height: 148px; }
+
+    .face-title {
+      margin-top: 22px; font-size: 20px; font-weight: 800; color: #1a1a1a; text-align: center;
+    }
+    .face-sub {
+      margin-top: 6px; color: #888; font-size: 13.5px; text-align: center; line-height: 1.5;
+    }
+
+    /* Mic ring */
+    .mic-wrap {
+      margin-top: 26px;
+      width: 90px; height: 90px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(212,0,255,.08);
+      transition: background .3s;
+    }
+    .mic-wrap.active {
+      animation: ring 1.2s infinite;
+    }
+    @keyframes ring {
+      0%   { box-shadow: 0 0 0 0   rgba(212,0,255,.45); }
+      70%  { box-shadow: 0 0 0 18px rgba(212,0,255,0); }
+      100% { box-shadow: 0 0 0 0   rgba(212,0,255,0); }
+    }
+
+    .call-btn {
+      background: linear-gradient(135deg, var(--pink), var(--pink2));
+      color: #fff; border: none; border-radius: 50px;
+      padding: 15px 36px; font-size: 16px; font-weight: 800;
+      cursor: pointer; box-shadow: 0 4px 22px rgba(212,0,255,.4);
+      transition: transform .15s;
+      white-space: nowrap;
+    }
+    .call-btn:active { transform: scale(.95); }
+    .call-btn.listening {
+      background: linear-gradient(135deg, #ff0055, #ff6600);
+      box-shadow: 0 4px 22px rgba(255,0,85,.4);
+    }
+
+    .status-text {
+      margin-top: 14px; font-size: 13px; color: #aaa; height: 18px; text-align: center;
+    }
+
+    /* Voice message bubbles */
+    #voiceLog {
+      width: 100%; margin-top: 18px;
+      display: flex; flex-direction: column; gap: 10px;
+      max-height: 200px; overflow-y: auto;
+    }
+
+    /* ── CHAT SECTION ── */
+    #chatSection {
+      flex: 1; display: flex; flex-direction: column;
+    }
+    .chat-log {
+      flex: 1; overflow-y: auto;
+      padding: 16px; display: flex; flex-direction: column; gap: 10px;
+    }
+    .chat-input-row {
+      padding: 10px 14px;
+      border-top: 1px solid #eee;
+      display: flex; gap: 10px; align-items: center;
+    }
+    .chat-input {
+      flex: 1; border: 2px solid #eee; border-radius: 24px;
+      padding: 11px 16px; font-size: 14.5px; outline: none;
+      transition: border-color .2s;
+    }
+    .chat-input:focus { border-color: var(--pink); }
+    .send-btn {
+      width: 44px; height: 44px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--pink), var(--pink2));
+      border: none; color: #fff; font-size: 20px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+
+    /* ── BUBBLES ── */
+    .msg {
+      max-width: 82%; padding: 10px 14px;
+      border-radius: 18px; font-size: 14px; line-height: 1.5;
+      word-break: break-word;
+    }
+    .msg.user {
+      background: linear-gradient(135deg, var(--pink), var(--pink2));
+      color: #fff; align-self: flex-end; border-bottom-right-radius: 5px;
+    }
+    .msg.snob {
+      background: #f0f0f0; color: #1a1a1a;
+      align-self: flex-start; border-bottom-left-radius: 5px;
+    }
+    .msg.typing { color: #bbb; font-style: italic; }
+
+    /* ── SETTINGS OVERLAY ── */
+    .overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.55);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 999; padding: 24px;
+    }
+    .settings-card {
+      background: #fff; border-radius: 24px;
+      padding: 28px 24px; width: 100%; max-width: 370px;
+    }
+    .settings-card h2 { font-size: 20px; margin-bottom: 8px; }
+    .settings-card p  { color: #777; font-size: 13px; line-height: 1.6; margin-bottom: 18px; }
+    .settings-card a  { color: var(--pink); }
+    .key-input {
+      width: 100%; border: 2px solid #eee; border-radius: 12px;
+      padding: 13px 16px; font-size: 14px; outline: none; margin-bottom: 14px;
+    }
+    .key-input:focus { border-color: var(--pink); }
+    .save-btn {
+      width: 100%; background: linear-gradient(135deg, var(--pink), var(--pink2));
+      color: #fff; border: none; border-radius: 12px;
+      padding: 15px; font-size: 16px; font-weight: 700; cursor: pointer;
+    }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Settings Overlay -->
+  <div class="overlay" id="settingsOverlay">
+    <div class="settings-card">
+      <h2>🤖 Snob einrichten</h2>
+      <p>
+        Gib deinen <strong>Anthropic API-Key</strong> ein.<br>
+        Er wird nur lokal auf deinem Gerät gespeichert.<br>
+        <a href="https://console.anthropic.com/account/keys" target="_blank">→ Key holen</a>
+      </p>
+      <input class="key-input" type="password" id="apiKeyInput" placeholder="sk-ant-api03-..." />
+      <button class="save-btn" onclick="saveKey()">Los geht's! 🚀</button>
+    </div>
+  </div>
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-avatar">🤖</div>
+    <div class="header-info">
+      <h1>Snob KI Agent</h1>
+      <p>Was willst du von mir?</p>
+    </div>
+    <button class="settings-btn" onclick="openSettings()" title="Settings">⚙️</button>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" id="tab-voice" onclick="switchTab('voice')">🎤 Voice</button>
+    <button class="tab"        id="tab-chat"  onclick="switchTab('chat')">💬 Chat</button>
+  </div>
+
+  <!-- VOICE SECTION -->
+  <div id="voiceSection">
+    <div class="face-wrapper">
+      <canvas id="snobFace" width="440" height="296"></canvas>
+    </div>
+
+    <div class="face-title">Alles über GoSNOB… Los!</div>
+    <div class="face-sub">Ist mir egal — Deutsch oder English.</div>
+
+    <div class="mic-wrap" id="micWrap">
+      <button class="call-btn" id="callBtn" onclick="toggleVoice()">🎤 Ruf Snob an!</button>
+    </div>
+
+    <div class="status-text" id="statusTxt">Tippe den Button um zu sprechen</div>
+    <div id="voiceLog"></div>
+  </div>
+
+  <!-- CHAT SECTION -->
+  <div id="chatSection" class="hidden">
+    <div class="chat-log" id="chatLog">
+      <div class="msg snob">Hey! Ich bin Snob 👋 Frag mich alles über GoSNOB!</div>
+    </div>
+    <div class="chat-input-row">
+      <input class="chat-input" id="chatInput" type="text"
+             placeholder="Schreib Snob…"
+             onkeydown="if(event.key==='Enter') sendChat()" />
+      <button class="send-btn" onclick="sendChat()">&#10148;</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ─────────────────────────────────────────────
+   FACE ANIMATION
+───────────────────────────────────────────── */
+const canvas = document.getElementById('snobFace');
+const ctx    = canvas.getContext('2d');
+
+let speaking   = false;
+let thinking   = false;
+let blinkFrame = 0;
+let blinking   = false;
+let mouthOpen  = 0;
+let mouthPhase = 0;
+let thinkPhase = 0;
+
+// Polyfill roundRect for older browsers
+if (!ctx.roundRect) {
+  ctx.roundRect = function(x, y, w, h, r) {
+    this.beginPath();
+    this.moveTo(x + r, y);
+    this.lineTo(x + w - r, y);
+    this.quadraticCurveTo(x + w, y, x + w, y + r);
+    this.lineTo(x + w, y + h - r);
+    this.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    this.lineTo(x + r, y + h);
+    this.quadraticCurveTo(x, y + h, x, y + h - r);
+    this.lineTo(x, y + r);
+    this.quadraticCurveTo(x, y, x + r, y);
+    this.closePath();
+  };
+}
+
+function drawFace() {
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  // Background
+  ctx.fillStyle = '#111';
+  ctx.roundRect(0, 0, W, H, 40);
+  ctx.fill();
+
+  const eyeY  = H * 0.41;
+  const leftX = W * 0.30;
+  const rightX= W * 0.70;
+  const eyeRx = W * 0.12;
+  const eyeRy = blinking ? 3 : H * 0.22;
+
+  // Glow when speaking
+  if (speaking) {
+    ctx.shadowColor = 'rgba(212,0,255,0.6)';
+    ctx.shadowBlur  = 18;
+  } else if (thinking) {
+    ctx.shadowColor = 'rgba(100,100,255,0.4)';
+    ctx.shadowBlur  = 12;
+  } else {
+    ctx.shadowBlur = 0;
+  }
+
+  // Eyes
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.ellipse(leftX, eyeY, eyeRx, eyeRy, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(rightX, eyeY, eyeRx, eyeRy, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.shadowBlur = 0;
+
+  // Mouth
+  const mY = H * 0.74;
+  const mW = W * 0.20;
+
+  if (thinking) {
+    // Thinking: animated dots
+    const dotSpacing = 14;
+    for (let i = 0; i < 3; i++) {
+      const bounce = Math.sin(thinkPhase + i * 0.9) * 5;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(W/2 - dotSpacing + i * dotSpacing, mY + bounce, 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else if (speaking && mouthOpen > 0.05) {
+    // Open mouth
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.ellipse(W/2, mY, mW, Math.max(3, H * 0.10 * mouthOpen), 0, 0, Math.PI * 2);
+    ctx.fill();
+  } else {
+    // Smile
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.arc(W/2, mY - 8, mW, 0.15 * Math.PI, 0.85 * Math.PI);
+    ctx.stroke();
+  }
+}
+
+let frame = 0;
+(function loop() {
+  frame++;
+
+  // Blink every ~3 sec (180 frames at 60fps)
+  if (!blinking && frame % 190 === 0) {
+    blinking = true;
+    setTimeout(() => { blinking = false; }, 130);
+  }
+
+  if (speaking) {
+    mouthPhase += 0.18;
+    mouthOpen = (Math.sin(mouthPhase) + 1) / 2;
+  } else {
+    mouthOpen *= 0.82;
+  }
+
+  if (thinking) thinkPhase += 0.1;
+
+  drawFace();
+  requestAnimationFrame(loop);
+})();
+
+/* ─────────────────────────────────────────────
+   SETTINGS
+───────────────────────────────────────────── */
+function saveKey() {
+  const k = document.getElementById('apiKeyInput').value.trim();
+  if (!k.startsWith('sk-')) {
+    alert('Ungültiger Key — muss mit sk- beginnen.');
+    return;
+  }
+  localStorage.setItem('snob_key', k);
+  document.getElementById('settingsOverlay').classList.add('hidden');
+}
+
+function openSettings() {
+  const k = localStorage.getItem('snob_key') || '';
+  document.getElementById('apiKeyInput').value = k;
+  document.getElementById('settingsOverlay').classList.remove('hidden');
+}
+
+window.addEventListener('load', () => {
+  if (!localStorage.getItem('snob_key')) openSettings();
+  else document.getElementById('settingsOverlay').classList.add('hidden');
+});
+
+/* ─────────────────────────────────────────────
+   TABS
+───────────────────────────────────────────── */
+function switchTab(tab) {
+  document.getElementById('voiceSection').classList.toggle('hidden', tab !== 'voice');
+  document.getElementById('chatSection').classList.toggle('hidden',  tab !== 'chat');
+  document.getElementById('tab-voice').classList.toggle('active', tab === 'voice');
+  document.getElementById('tab-chat').classList.toggle('active',  tab === 'chat');
+}
+
+/* ─────────────────────────────────────────────
+   CLAUDE API
+───────────────────────────────────────────── */
+const SYSTEM = `Du bist Snob, ein frecher, witziger KI-Agent für GoSNOB — eine exklusive
+Lifestyle-Community. Du antwortest auf Deutsch oder Englisch, je nachdem was der User schreibt.
+Sei kurz (max 2-3 Sätze), direkt, ein bisschen arrogant-charmant wie ein echter Snob.
+Keine langen Erklärungen. Bring Persönlichkeit.`;
+
+async function askSnob(text) {
+  const key = localStorage.getItem('snob_key');
+  if (!key) { openSettings(); return null; }
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': key,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 180,
+      system: SYSTEM,
+      messages: [{ role: 'user', content: text }]
+    })
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message || `HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  return data.content[0].text;
+}
+
+/* ─────────────────────────────────────────────
+   SPEECH
+───────────────────────────────────────────── */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recog = null, listening = false;
+
+if (SR) {
+  recog = new SR();
+  recog.continuous = false;
+  recog.interimResults = false;
+  recog.lang = 'de-DE';
+
+  recog.onresult = async (e) => {
+    const txt = e.results[0][0].transcript;
+    setStatus(`Du: "${txt}"`);
+    addVoiceBubble('user', txt);
+    await replyVoice(txt);
+  };
+
+  recog.onend = () => {
+    if (listening) { listening = false; setListeningUI(false); }
+  };
+  recog.onerror = (e) => {
+    listening = false; setListeningUI(false);
+    setStatus('Fehler: ' + e.error);
+  };
+}
+
+async function replyVoice(txt) {
+  thinking = true; setStatus('Snob denkt…');
+  try {
+    const reply = await askSnob(txt);
+    if (!reply) return;
+    thinking = false;
+    addVoiceBubble('snob', reply);
+    tts(reply);
+  } catch (err) {
+    thinking = false;
+    setStatus('Fehler: ' + err.message);
+    addVoiceBubble('snob', '⚠️ ' + err.message);
+  }
+}
+
+function tts(text) {
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'de-DE'; u.rate = 1.05;
+  u.onstart = () => { speaking = true; };
+  u.onend   = () => { speaking = false; setStatus('Tippe um zu sprechen'); };
+  speaking = true;
+  window.speechSynthesis.speak(u);
+}
+
+function toggleVoice() {
+  if (!recog) {
+    setStatus('Spracherkennung nicht verfügbar (Chrome empfohlen)');
+    return;
+  }
+  if (listening) {
+    recog.stop(); listening = false; setListeningUI(false);
+  } else {
+    window.speechSynthesis.cancel();
+    speaking = false;
+    recog.start(); listening = true; setListeningUI(true);
+    setStatus('Ich höre zu… 🎤');
+  }
+}
+
+function setListeningUI(on) {
+  const btn  = document.getElementById('callBtn');
+  const wrap = document.getElementById('micWrap');
+  btn.textContent = on ? '⏹ Stop' : '🎤 Ruf Snob an!';
+  btn.classList.toggle('listening', on);
+  wrap.classList.toggle('active', on);
+  if (!on && !thinking) setStatus('Tippe um zu sprechen');
+}
+
+function setStatus(t) {
+  document.getElementById('statusTxt').textContent = t;
+}
+
+function addVoiceBubble(role, text) {
+  const log = document.getElementById('voiceLog');
+  const d = document.createElement('div');
+  d.className = 'msg ' + role;
+  d.textContent = text;
+  log.appendChild(d);
+  log.scrollTop = log.scrollHeight;
+}
+
+/* ─────────────────────────────────────────────
+   CHAT
+───────────────────────────────────────────── */
+async function sendChat() {
+  const input = document.getElementById('chatInput');
+  const txt = input.value.trim();
+  if (!txt) return;
+  input.value = '';
+
+  addChatBubble('user', txt);
+
+  const typing = addChatBubble('snob', '…', true);
+  thinking = true;
+
+  try {
+    const reply = await askSnob(txt);
+    thinking = false;
+    typing.remove();
+    if (reply) {
+      addChatBubble('snob', reply);
+      tts(reply);
+    }
+  } catch (err) {
+    thinking = false;
+    typing.remove();
+    addChatBubble('snob', '⚠️ ' + err.message);
+  }
+}
+
+function addChatBubble(role, text, isTyping = false) {
+  const log = document.getElementById('chatLog');
+  const d = document.createElement('div');
+  d.className = 'msg ' + role + (isTyping ? ' typing' : '');
+  d.textContent = text;
+  log.appendChild(d);
+  log.scrollTop = log.scrollHeight;
+  return d;
+}
+</script>
+</body>
+</html>
